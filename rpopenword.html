@@ -1,333 +1,745 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <title>Stoneshard Clóne - HTML RPG</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Feito RPG - Open World</title>
     <style>
+        :root {
+            --bg: #10121a;
+            --panel: #1a1f2d;
+            --tile: #252c3f;
+            --text: #e7ebff;
+            --accent: #6ee7ff;
+            --danger: #ff6b6b;
+            --success: #8effb3;
+            --warning: #ffd166;
+        }
+
+        * { box-sizing: border-box; }
+
         body {
-            background-color: #1a1a1a;
-            color: #eee;
-            font-family: 'Courier New', Courier, monospace;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 20px;
             margin: 0;
+            font-family: 'Courier New', monospace;
+            background: radial-gradient(circle at top, #1b2140, #0a0d16 70%);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 16px;
         }
-        #game-container {
-            display: flex;
-            gap: 20px;
+
+        #layout {
+            max-width: 1300px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: minmax(460px, 1fr) 360px;
+            gap: 16px;
         }
-        canvas {
-            border: 2px solid #555;
-            background-color: #2a2a2a;
-            box-shadow: 0 0 10px rgba(0,0,0,0.8);
-        }
-        #ui-panel {
-            width: 300px;
-            background-color: #222;
-            padding: 15px;
-            border: 2px solid #555;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-        .status-box, .skills-box, .log-box {
-            background-color: #111;
+
+        #game-wrap {
+            background: rgba(8, 12, 20, 0.8);
+            border: 2px solid #2e3856;
+            border-radius: 8px;
             padding: 10px;
-            border: 1px solid #444;
         }
-        .log-box {
-            flex-grow: 1;
-            height: 250px;
+
+        canvas {
+            width: 100%;
+            max-width: 704px;
+            image-rendering: pixelated;
+            border: 2px solid #3d4870;
+            background: #1d2435;
+        }
+
+        #hud {
+            display: grid;
+            gap: 12px;
+            align-content: start;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid #39415f;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .panel h3 {
+            margin: 0 0 8px;
+            border-bottom: 1px solid #3b4669;
+            padding-bottom: 6px;
+            color: var(--accent);
+            font-size: 16px;
+        }
+
+        .bars { display: grid; gap: 6px; }
+
+        .bar {
+            height: 10px;
+            border-radius: 999px;
+            background: #0f1320;
+            border: 1px solid #38405e;
+            overflow: hidden;
+        }
+
+        .fill { height: 100%; }
+        .hp { background: linear-gradient(90deg, #7f1d1d, #ff6b6b); }
+        .mana { background: linear-gradient(90deg, #1d4ed8, #6ee7ff); }
+        .sta { background: linear-gradient(90deg, #365314, #8effb3); }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        #log {
+            height: 220px;
             overflow-y: auto;
-            font-size: 14px;
+            font-size: 12px;
+            background: #0f1424;
+            border: 1px solid #374266;
+            padding: 8px;
+            border-radius: 6px;
         }
-        h3 { margin-top: 0; border-bottom: 1px solid #555; padding-bottom: 5px; }
-        .log-entry { margin: 5px 0; border-bottom: 1px solid #222; padding-bottom: 2px;}
-        .alert { color: #ffeb3b; }
-        .damage { color: #ff5252; }
-        .heal { color: #69f0ae; }
+
+        .entry { margin-bottom: 5px; }
+        .danger { color: var(--danger); }
+        .success { color: var(--success); }
+        .warn { color: var(--warning); }
+
+        ul { margin: 0; padding-left: 18px; }
+        li { margin-bottom: 4px; }
+        .small { font-size: 12px; color: #b7c0e6; }
+
+        #dialogue {
+            font-size: 13px;
+            line-height: 1.35;
+            background: #13192b;
+            border: 1px solid #3b4568;
+            border-radius: 6px;
+            padding: 8px;
+            min-height: 64px;
+        }
+
+        .kbd {
+            display: inline-block;
+            border: 1px solid #4f5d88;
+            border-bottom-width: 2px;
+            border-radius: 4px;
+            padding: 1px 5px;
+            font-size: 11px;
+            background: #1f2842;
+        }
     </style>
 </head>
 <body>
+<div id="layout">
+    <div id="game-wrap">
+        <canvas id="gameCanvas" width="704" height="704"></canvas>
+    </div>
 
-<div id="game-container">
-    <canvas id="gameCanvas" width="480" height="480"></canvas>
-    
-    <div id="ui-panel">
-        <div class="status-box">
-            <h3>Status 🧙‍♂️</h3>
-            <div id="stats">
-                Nível: 1 <br>
-                HP: 20 / 20 <br>
-                Ataque: 5 <br>
-                XP: 0 / 10
+    <div id="hud">
+        <div class="panel">
+            <h3>Herói</h3>
+            <div id="heroText" class="small"></div>
+            <div class="bars">
+                <div class="row"><span>HP</span><span id="hpText"></span></div>
+                <div class="bar"><div id="hpFill" class="fill hp"></div></div>
+                <div class="row"><span>Mana</span><span id="manaText"></span></div>
+                <div class="bar"><div id="manaFill" class="fill mana"></div></div>
+                <div class="row"><span>Vigor</span><span id="staText"></span></div>
+                <div class="bar"><div id="staFill" class="fill sta"></div></div>
             </div>
         </div>
-        
-        <div class="skills-box">
-            <h3>Habilidades (Skills)</h3>
-            <p><strong>[ 1 ] Investida:</strong> Anda 2 tiles na direção escolhida. (Custo: 1 Turno)</p>
-            <div id="skill-status" style="color: gray;">Investida: Pronta</div>
+
+        <div class="panel">
+            <h3>Mundo Vivo</h3>
+            <div id="worldInfo" class="small"></div>
+            <ul id="questList"></ul>
         </div>
 
-        <div class="log-box" id="combat-log">
-            <h3>Log do Mundo</h3>
-            </div>
+        <div class="panel">
+            <h3>Skills (1-5)</h3>
+            <ul id="skillsList" class="small"></ul>
+        </div>
+
+        <div class="panel">
+            <h3>Roleplay / Interação</h3>
+            <div id="dialogue"></div>
+            <p class="small">Use <span class="kbd">E</span> perto de cidade, ruínas ou santuários.</p>
+        </div>
+
+        <div class="panel">
+            <h3>Log do Reino</h3>
+            <div id="log"></div>
+        </div>
     </div>
 </div>
 
 <script>
+(() => {
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const logBox = document.getElementById('combat-log');
-    
-    const TILE_SIZE = 32;
-    const COLS = 15;
-    const ROWS = 15;
 
-    // Estado do Jogo
-    let map = [];
-    let turnCount = 0;
-    let skillActive = false; // Flag para saber se a próxima ação usará a skill
+    const WORLD_SIZE = 42;
+    const VIEW = 16;
+    const TILE = canvas.width / VIEW;
 
-    // Entidade Jogador
-    let player = {
-        x: 1, y: 1,
-        hp: 20, maxHp: 20,
-        atk: 5, level: 1, xp: 0, xpNext: 10,
-        icon: '🧙‍♂️'
+    const TERRAIN = {
+        PLAIN: { color: '#23324f', glyph: '·', danger: 1, walkable: true, name: 'Planície' },
+        FOREST: { color: '#1f4a36', glyph: '♣', danger: 2, walkable: true, name: 'Floresta' },
+        SWAMP: { color: '#31462c', glyph: '≈', danger: 3, walkable: true, name: 'Pântano' },
+        HILL: { color: '#4d3e2f', glyph: '∧', danger: 2, walkable: true, name: 'Colinas' },
+        RUIN: { color: '#4f445b', glyph: '⌂', danger: 4, walkable: true, name: 'Ruínas' },
+        TOWN: { color: '#5f6db6', glyph: '⌘', danger: 0, walkable: true, name: 'Cidade' },
+        WATER: { color: '#1d3f7f', glyph: '~', danger: 0, walkable: false, name: 'Água Profunda' }
     };
 
-    // Entidades Inimigas
+    const world = [];
     let enemies = [];
+    let npcs = [];
 
-    // Função de Log
-    function addLog(msg, type = "") {
-        const entry = document.createElement('div');
-        entry.className = `log-entry ${type}`;
-        entry.innerText = `[T${turnCount}] ${msg}`;
-        logBox.prepend(entry);
+    const player = {
+        x: 8,
+        y: 8,
+        hp: 120,
+        maxHp: 120,
+        mana: 60,
+        maxMana: 60,
+        stamina: 80,
+        maxStamina: 80,
+        atk: 14,
+        armor: 4,
+        level: 1,
+        xp: 0,
+        xpNext: 30,
+        gold: 25,
+        className: 'Errante Arcano',
+        fame: 0,
+        karma: 0,
+        inventory: { potion: 3, ore: 0, relic: 0 },
+        cooldowns: { dash: 0, whirlwind: 0, firebolt: 0, heal: 0, shadowstep: 0 }
+    };
+
+    const game = {
+        turn: 0,
+        day: 1,
+        hour: 8,
+        weather: 'Céu limpo',
+        selectedSkill: null,
+        running: true,
+        quests: [
+            { id: 'prologo', text: 'Fale com o ancião em Haven para iniciar sua jornada.', done: false, type: 'story' },
+            { id: 'caca', text: 'Elimine 8 saqueadores nas estradas (0/8).', progress: 0, target: 8, done: false, type: 'hunt' },
+            { id: 'reliquia', text: 'Recupere 3 relíquias em ruínas antigas (0/3).', progress: 0, target: 3, done: false, type: 'collect' }
+        ],
+        dialogue: 'Você desperta em um continente dilacerado por guerra, fome e magia proibida.'
+    };
+
+    const DOM = {
+        heroText: document.getElementById('heroText'),
+        hpText: document.getElementById('hpText'),
+        manaText: document.getElementById('manaText'),
+        staText: document.getElementById('staText'),
+        hpFill: document.getElementById('hpFill'),
+        manaFill: document.getElementById('manaFill'),
+        staFill: document.getElementById('staFill'),
+        worldInfo: document.getElementById('worldInfo'),
+        skillsList: document.getElementById('skillsList'),
+        log: document.getElementById('log'),
+        dialogue: document.getElementById('dialogue'),
+        questList: document.getElementById('questList')
+    };
+
+    function addLog(text, cls = '') {
+        const el = document.createElement('div');
+        el.className = `entry ${cls}`;
+        el.textContent = `[D${game.day} ${String(game.hour).padStart(2, '0')}:00] ${text}`;
+        DOM.log.prepend(el);
     }
 
-    // Gerar Mapa Simples (0 = chão, 1 = parede)
-    function generateMap() {
-        for (let y = 0; y < ROWS; y++) {
-            map[y] = [];
-            for (let x = 0; x < COLS; x++) {
-                // Bordas são paredes, interior tem chance de ser parede
-                if (x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1) {
-                    map[y][x] = 1;
-                } else {
-                    map[y][x] = Math.random() < 0.15 ? 1 : 0;
-                }
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    function randomTerrain() {
+        const r = Math.random();
+        if (r < 0.08) return 'WATER';
+        if (r < 0.38) return 'FOREST';
+        if (r < 0.56) return 'PLAIN';
+        if (r < 0.72) return 'HILL';
+        if (r < 0.88) return 'SWAMP';
+        return 'RUIN';
+    }
+
+    function generateWorld() {
+        for (let y = 0; y < WORLD_SIZE; y++) {
+            world[y] = [];
+            for (let x = 0; x < WORLD_SIZE; x++) {
+                world[y][x] = { type: randomTerrain(), visited: false };
             }
         }
-        map[player.y][player.x] = 0; // Garante que o jogador não nasça na parede
-        
-        // Adicionar inimigos
-        for(let i = 0; i < 4; i++) {
+
+        const cities = [
+            { x: 8, y: 8, name: 'Haven' },
+            { x: 28, y: 13, name: 'Forte Brasafria' },
+            { x: 18, y: 31, name: 'Porto de Sal' }
+        ];
+
+        cities.forEach(c => {
+            world[c.y][c.x] = { type: 'TOWN', visited: false, cityName: c.name };
+            npcs.push({ x: c.x, y: c.y, name: `Ancião de ${c.name}` });
+        });
+
+        for (let i = 0; i < 38; i++) spawnEnemy();
+    }
+
+    function spawnEnemy() {
+        let x, y;
+        do {
+            x = Math.floor(Math.random() * WORLD_SIZE);
+            y = Math.floor(Math.random() * WORLD_SIZE);
+        } while ((x === player.x && y === player.y) || !TERRAIN[world[y][x].type].walkable);
+
+        const t = world[y][x].type;
+        const danger = TERRAIN[t].danger;
+        const level = Math.max(1, Math.floor(Math.random() * 2 + danger));
+        const archetypes = [
+            { name: 'Ladrão das Estradas', icon: '🗡️', hp: 22, atk: 6 },
+            { name: 'Necrófago', icon: '☠️', hp: 28, atk: 7 },
+            { name: 'Cultista', icon: '🔮', hp: 20, atk: 9 },
+            { name: 'Bestial', icon: '🐺', hp: 24, atk: 8 }
+        ];
+        const base = archetypes[Math.floor(Math.random() * archetypes.length)];
+        enemies.push({
+            x, y,
+            name: base.name,
+            icon: base.icon,
+            level,
+            hp: base.hp + level * 4,
+            maxHp: base.hp + level * 4,
+            atk: base.atk + level * 2,
+            aggro: 5 + danger
+        });
+    }
+
+    function tileAt(x, y) {
+        if (x < 0 || y < 0 || x >= WORLD_SIZE || y >= WORLD_SIZE) return null;
+        return world[y][x];
+    }
+
+    function enemyAt(x, y) {
+        return enemies.find(e => e.x === x && e.y === y);
+    }
+
+    function useSkill(dx, dy) {
+        const skill = game.selectedSkill;
+        game.selectedSkill = null;
+        if (!skill) return false;
+
+        if (skill === 'dash') {
+            if (player.cooldowns.dash > 0 || player.stamina < 12) return false;
+            const tx = player.x + dx * 2;
+            const ty = player.y + dy * 2;
+            const t = tileAt(tx, ty);
+            if (!t || !TERRAIN[t.type].walkable || enemyAt(tx, ty)) {
+                addLog('Investida falhou por terreno bloqueado.', 'warn');
+                return false;
+            }
+            player.x = tx; player.y = ty;
+            player.stamina -= 12;
+            player.cooldowns.dash = 3;
+            addLog('Você corta o vento com uma investida feroz.', 'success');
+            return true;
+        }
+
+        if (skill === 'whirlwind') {
+            if (player.cooldowns.whirlwind > 0 || player.stamina < 20) return false;
+            const hit = enemies.filter(e => Math.abs(e.x - player.x) + Math.abs(e.y - player.y) === 1);
+            if (!hit.length) {
+                addLog('Nenhum alvo adjacente para Turbilhão.', 'warn');
+                return false;
+            }
+            hit.forEach(enemy => damageEnemy(enemy, player.atk + 8, true));
+            player.stamina -= 20;
+            player.cooldowns.whirlwind = 4;
+            addLog(`Turbilhão acertou ${hit.length} inimigos.`, 'success');
+            return true;
+        }
+
+        if (skill === 'firebolt') {
+            if (player.cooldowns.firebolt > 0 || player.mana < 18) return false;
+            let tx = player.x + dx, ty = player.y + dy;
+            for (let i = 0; i < 3; i++) {
+                const target = enemyAt(tx, ty);
+                if (target) {
+                    damageEnemy(target, player.atk + 14, true);
+                    player.mana -= 18;
+                    player.cooldowns.firebolt = 2;
+                    addLog(`Bólido Ígneo incinerou ${target.name}.`, 'success');
+                    return true;
+                }
+                if (!tileAt(tx, ty) || !TERRAIN[tileAt(tx, ty).type].walkable) break;
+                tx += dx; ty += dy;
+            }
+            addLog('Bólido Ígneo não encontrou alvo.', 'warn');
+            return false;
+        }
+
+        if (skill === 'heal') {
+            if (player.cooldowns.heal > 0 || player.mana < 20) return false;
+            const amount = 22 + Math.floor(player.level * 3.5);
+            player.hp = clamp(player.hp + amount, 0, player.maxHp);
+            player.mana -= 20;
+            player.cooldowns.heal = 5;
+            addLog(`Luz Vital restaurou ${amount} de HP.`, 'success');
+            return true;
+        }
+
+        if (skill === 'shadowstep') {
+            if (player.cooldowns.shadowstep > 0 || player.stamina < 16) return false;
+            let tx = player.x + dx * 3;
+            let ty = player.y + dy * 3;
+            while ((tx !== player.x || ty !== player.y) && (!tileAt(tx, ty) || !TERRAIN[tileAt(tx, ty).type].walkable || enemyAt(tx, ty))) {
+                tx -= dx;
+                ty -= dy;
+            }
+            if (tx === player.x && ty === player.y) return false;
+            player.x = tx; player.y = ty;
+            player.stamina -= 16;
+            player.cooldowns.shadowstep = 4;
+            addLog('Passo Sombrio reposicionou você para um ataque letal.', 'success');
+            return true;
+        }
+
+        return false;
+    }
+
+    function damageEnemy(enemy, amount, skillHit = false) {
+        enemy.hp -= amount;
+        if (!skillHit) addLog(`Você atingiu ${enemy.name} por ${amount}.`);
+        if (enemy.hp <= 0) {
+            addLog(`${enemy.name} caiu em combate.`, 'success');
+            const xp = 10 + enemy.level * 5;
+            const gold = 6 + enemy.level * 4;
+            player.xp += xp;
+            player.gold += gold;
+            if (Math.random() < 0.22) player.inventory.ore += 1;
+            if (Math.random() < 0.15 && world[enemy.y][enemy.x].type === 'RUIN') player.inventory.relic += 1;
+            enemies = enemies.filter(e => e !== enemy);
+            trackQuest(enemy);
+            maybeLevelUp();
             spawnEnemy();
         }
     }
 
-    function spawnEnemy() {
-        let ex, ey;
-        do {
-            ex = Math.floor(Math.random() * (COLS - 2)) + 1;
-            ey = Math.floor(Math.random() * (ROWS - 2)) + 1;
-        } while (map[ey][ex] === 1 || (ex === player.x && ey === player.y));
-        
-        enemies.push({ x: ex, y: ey, hp: 10, maxHp: 10, atk: 2, icon: '👹', name: 'Goblin' });
+    function attackEnemy(enemy) {
+        const dmg = player.atk + Math.floor(Math.random() * 6) + Math.floor(player.level / 2);
+        damageEnemy(enemy, dmg);
     }
 
-    // Desenhar o Jogo
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Desenhar Mapa
-        for (let y = 0; y < ROWS; y++) {
-            for (let x = 0; x < COLS; x++) {
-                if (map[y][x] === 1) {
-                    ctx.fillStyle = '#444'; // Parede
-                    ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-                } else {
-                    ctx.fillStyle = '#2a2a2a'; // Chão
-                    ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-                    ctx.strokeStyle = '#333';
-                    ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-                }
+    function maybeLevelUp() {
+        while (player.xp >= player.xpNext) {
+            player.xp -= player.xpNext;
+            player.level += 1;
+            player.xpNext = Math.floor(player.xpNext * 1.45);
+            player.maxHp += 14;
+            player.maxMana += 8;
+            player.maxStamina += 7;
+            player.hp = player.maxHp;
+            player.mana = player.maxMana;
+            player.stamina = player.maxStamina;
+            player.atk += 3;
+            player.armor += 1;
+            player.fame += 2;
+            addLog(`Level UP! Agora você é nível ${player.level}.`, 'success');
+        }
+    }
+
+    function trackQuest(enemy) {
+        const hunt = game.quests.find(q => q.id === 'caca');
+        if (hunt && !hunt.done) {
+            hunt.progress += 1;
+            hunt.text = `Elimine 8 saqueadores nas estradas (${hunt.progress}/8).`;
+            if (hunt.progress >= hunt.target) {
+                hunt.done = true;
+                player.gold += 120;
+                player.karma += 1;
+                addLog('Contrato de Caça completo! +120 ouro.', 'success');
             }
         }
 
-        ctx.font = '24px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+        const relic = game.quests.find(q => q.id === 'reliquia');
+        if (relic && !relic.done) {
+            relic.progress = player.inventory.relic;
+            relic.text = `Recupere 3 relíquias em ruínas antigas (${relic.progress}/3).`;
+            if (relic.progress >= relic.target) {
+                relic.done = true;
+                player.gold += 180;
+                player.fame += 4;
+                addLog('Você recuperou as relíquias ancestrais! +180 ouro.', 'success');
+            }
+        }
+    }
 
-        // Desenhar Inimigos
-        enemies.forEach(e => {
-            ctx.fillText(e.icon, e.x * TILE_SIZE + TILE_SIZE/2, e.y * TILE_SIZE + TILE_SIZE/2);
-            // Barra de HP do inimigo
-            ctx.fillStyle = 'red';
-            ctx.fillRect(e.x * TILE_SIZE + 2, e.y * TILE_SIZE + 2, (TILE_SIZE-4) * (e.hp/e.maxHp), 4);
+    function spendTurn() {
+        game.turn += 1;
+        if (game.turn % 2 === 0) {
+            game.hour += 1;
+            if (game.hour >= 24) {
+                game.hour = 0;
+                game.day += 1;
+            }
+        }
+
+        if (Math.random() < 0.08) {
+            game.weather = ['Céu limpo', 'Garoa', 'Neblina', 'Tempestade Arcana'][Math.floor(Math.random() * 4)];
+            addLog(`O clima mudou: ${game.weather}.`, 'warn');
+        }
+
+        player.mana = clamp(player.mana + 2, 0, player.maxMana);
+        player.stamina = clamp(player.stamina + 3, 0, player.maxStamina);
+
+        Object.keys(player.cooldowns).forEach(key => {
+            if (player.cooldowns[key] > 0) player.cooldowns[key] -= 1;
         });
 
-        // Desenhar Jogador
-        ctx.fillText(player.icon, player.x * TILE_SIZE + TILE_SIZE/2, player.y * TILE_SIZE + TILE_SIZE/2);
-        
-        // Efeito visual se skill estiver ativada
-        if (skillActive) {
-            ctx.strokeStyle = 'yellow';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(player.x * TILE_SIZE, player.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-        }
-
-        updateUI();
-    }
-
-    function updateUI() {
-        document.getElementById('stats').innerHTML = `
-            Nível: ${player.level} <br>
-            HP: ${player.hp} / ${player.maxHp} <br>
-            Ataque: ${player.atk} <br>
-            XP: ${player.xp} / ${player.xpNext}
-        `;
-        document.getElementById('skill-status').innerText = skillActive ? "Investida: PRONTA PARA USO (Mova-se)" : "Investida: Ociosa (Pressione 1)";
-        document.getElementById('skill-status').style.color = skillActive ? "#ffeb3b" : "gray";
-    }
-
-    // Lógica de Turno e Movimento
-    function movePlayer(dx, dy) {
-        let distance = skillActive ? 2 : 1;
-        let targetX = player.x + (dx * distance);
-        let targetY = player.y + (dy * distance);
-        
-        skillActive = false; // Desativa a skill após o uso
-        turnCount++;
-
-        // Verifica limites do mapa
-        if (targetX < 0 || targetX >= COLS || targetY < 0 || targetY >= ROWS) {
-            addLog("Uma parede invisível bloqueia o caminho.", "alert");
-            return;
-        }
-
-        // Verifica colisão com parede
-        if (map[targetY][targetX] === 1) {
-            addLog("Você bateu de cara na parede.");
-            enemyTurn();
-            draw();
-            return;
-        }
-
-        // Verifica se tem inimigo no destino (Sistema de combate esbarrando)
-        let enemyIndex = enemies.findIndex(e => e.x === targetX && e.y === targetY);
-        if (enemyIndex !== -1) {
-            combat(enemies[enemyIndex], enemyIndex);
-        } else {
-            // Se o caminho estiver livre, move
-            player.x = targetX;
-            player.y = targetY;
-            if(distance === 2) addLog("Você usou INVESTIDA e avançou rapidamente!", "alert");
-        }
-
-        // Inimigos agem depois de você
         enemyTurn();
+        updateUI();
         draw();
     }
 
-    function combat(enemy, index) {
-        // Jogador ataca inimigo
-        enemy.hp -= player.atk;
-        addLog(`Você causou ${player.atk} de dano no ${enemy.name}.`, "heal");
-
-        if (enemy.hp <= 0) {
-            addLog(`Você derrotou o ${enemy.name}! Ganhou 5 XP.`, "alert");
-            enemies.splice(index, 1);
-            gainXP(5);
-        }
-    }
-
-    function gainXP(amount) {
-        player.xp += amount;
-        if (player.xp >= player.xpNext) {
-            player.level++;
-            player.xp -= player.xpNext;
-            player.xpNext = Math.floor(player.xpNext * 1.5);
-            player.maxHp += 5;
-            player.hp = player.maxHp;
-            player.atk += 2;
-            addLog(`NÍVEL UPU! Você alcançou o Nível ${player.level}!`, "heal");
-        }
-    }
-
-    // IA Simples dos Inimigos
     function enemyTurn() {
-        enemies.forEach(e => {
-            // Distância até o jogador
-            let dx = player.x - e.x;
-            let dy = player.y - e.y;
-            let dist = Math.abs(dx) + Math.abs(dy);
+        enemies.forEach(enemy => {
+            const dx = player.x - enemy.x;
+            const dy = player.y - enemy.y;
+            const dist = Math.abs(dx) + Math.abs(dy);
 
             if (dist === 1) {
-                // Ataca o jogador se estiver adjacente
-                let dmg = e.atk;
+                const dmg = Math.max(1, enemy.atk - player.armor + Math.floor(Math.random() * 4));
                 player.hp -= dmg;
-                addLog(`O ${e.name} te atacou causando ${dmg} de dano!`, "damage");
-                
+                addLog(`${enemy.name} te acertou por ${dmg}.`, 'danger');
                 if (player.hp <= 0) {
-                    addLog("VOCÊ MORREU! Pressione F5 para reiniciar.", "damage");
                     player.hp = 0;
+                    game.running = false;
+                    game.dialogue = 'Você tombou... mas lendas dizem que heróis retornam. Recarregue para renascer.';
+                    addLog('Você foi derrotado!', 'danger');
                 }
-            } else if (dist < 6) {
-                // Persegue o jogador se estiver perto (Range de aggro)
-                let moveX = 0, moveY = 0;
-                if (Math.abs(dx) > Math.abs(dy)) {
-                    moveX = dx > 0 ? 1 : -1;
-                } else {
-                    moveY = dy > 0 ? 1 : -1;
-                }
-                
-                let nextX = e.x + moveX;
-                let nextY = e.y + moveY;
+                return;
+            }
 
-                // Verifica se a célula está livre para andar
-                if (map[nextY][nextX] === 0 && !(nextX === player.x && nextY === player.y) && !enemies.some(other => other.x === nextX && other.y === nextY)) {
-                    e.x = nextX;
-                    e.y = nextY;
+            if (dist <= enemy.aggro) {
+                const mx = Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) : 0;
+                const my = mx === 0 ? Math.sign(dy) : 0;
+                const nx = enemy.x + mx;
+                const ny = enemy.y + my;
+                if (!enemyAt(nx, ny) && !(nx === player.x && ny === player.y) && tileAt(nx, ny) && TERRAIN[tileAt(nx, ny).type].walkable) {
+                    enemy.x = nx;
+                    enemy.y = ny;
                 }
             }
         });
+    }
 
-        // Respawn de inimigos se o mapa ficar vazio
-        if(enemies.length === 0) {
-            addLog("Novos monstros apareceram nas sombras...", "alert");
-            for(let i=0; i<3; i++) spawnEnemy();
+    function interact() {
+        const current = tileAt(player.x, player.y);
+        if (!current) return;
+
+        if (current.type === 'TOWN') {
+            if (!game.quests.find(q => q.id === 'prologo').done) {
+                game.quests.find(q => q.id === 'prologo').done = true;
+                player.gold += 60;
+                player.fame += 2;
+                game.dialogue = 'Ancião: "As ruínas cantam teu nome. Traga relíquias e o povo lembrará de ti."';
+                addLog('Prólogo completo! +60 ouro.', 'success');
+            } else {
+                const healCost = 22;
+                if (player.gold >= healCost) {
+                    player.gold -= healCost;
+                    player.hp = player.maxHp;
+                    player.mana = player.maxMana;
+                    player.stamina = player.maxStamina;
+                    game.dialogue = 'Você descansou na estalagem, ouvindo rumores de guerra no norte.';
+                    addLog('Descanso completo na cidade.', 'success');
+                } else {
+                    game.dialogue = 'Estalajadeiro: "Volte com ouro. Sem dívida por aqui."';
+                    addLog('Ouro insuficiente para descansar.', 'warn');
+                }
+            }
+            updateUI();
+            return;
+        }
+
+        if (current.type === 'RUIN') {
+            if (Math.random() < 0.45) {
+                player.inventory.relic += 1;
+                addLog('Você encontrou uma relíquia nas ruínas!', 'success');
+            } else {
+                addLog('As ruínas ecoam... nada além de poeira e sombras.', 'warn');
+            }
+            game.dialogue = 'Memórias de civilizações mortas atravessam sua mente.';
+            trackQuest({});
+            updateUI();
+            return;
+        }
+
+        game.dialogue = 'Você não encontrou nada para interagir aqui.';
+    }
+
+    function move(dx, dy) {
+        if (!game.running) return;
+
+        const skillUsed = useSkill(dx, dy);
+        if (skillUsed) {
+            spendTurn();
+            return;
+        }
+
+        const nx = player.x + dx;
+        const ny = player.y + dy;
+        const t = tileAt(nx, ny);
+        if (!t || !TERRAIN[t.type].walkable) {
+            addLog('Terreno bloqueado.', 'warn');
+            return;
+        }
+
+        const enemy = enemyAt(nx, ny);
+        if (enemy) {
+            attackEnemy(enemy);
+            spendTurn();
+            return;
+        }
+
+        player.x = nx;
+        player.y = ny;
+        world[player.y][player.x].visited = true;
+        spendTurn();
+    }
+
+    function drawTile(vx, vy, wx, wy) {
+        const tile = tileAt(wx, wy);
+        const px = vx * TILE;
+        const py = vy * TILE;
+
+        if (!tile) {
+            ctx.fillStyle = '#05070d';
+            ctx.fillRect(px, py, TILE, TILE);
+            return;
+        }
+
+        const data = TERRAIN[tile.type];
+        ctx.fillStyle = data.color;
+        ctx.fillRect(px, py, TILE, TILE);
+
+        const hourDarkness = game.hour >= 20 || game.hour <= 5;
+        if (hourDarkness) {
+            ctx.fillStyle = 'rgba(0,0,0,0.27)';
+            ctx.fillRect(px, py, TILE, TILE);
+        }
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.strokeRect(px, py, TILE, TILE);
+
+        ctx.fillStyle = 'rgba(230,240,255,0.33)';
+        ctx.font = '15px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(data.glyph, px + TILE / 2, py + TILE / 2);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const startX = clamp(player.x - Math.floor(VIEW / 2), 0, WORLD_SIZE - VIEW);
+        const startY = clamp(player.y - Math.floor(VIEW / 2), 0, WORLD_SIZE - VIEW);
+
+        for (let vy = 0; vy < VIEW; vy++) {
+            for (let vx = 0; vx < VIEW; vx++) {
+                drawTile(vx, vy, startX + vx, startY + vy);
+            }
+        }
+
+        enemies.forEach(e => {
+            if (e.x < startX || e.y < startY || e.x >= startX + VIEW || e.y >= startY + VIEW) return;
+            const vx = e.x - startX;
+            const vy = e.y - startY;
+            ctx.font = '22px Arial';
+            ctx.fillStyle = '#fff';
+            ctx.fillText(e.icon, vx * TILE + TILE / 2, vy * TILE + TILE / 2);
+            ctx.fillStyle = '#3b0f16';
+            ctx.fillRect(vx * TILE + 4, vy * TILE + 4, TILE - 8, 5);
+            ctx.fillStyle = '#ff6b6b';
+            ctx.fillRect(vx * TILE + 4, vy * TILE + 4, (TILE - 8) * (e.hp / e.maxHp), 5);
+        });
+
+        const px = player.x - startX;
+        const py = player.y - startY;
+        ctx.font = '24px Arial';
+        ctx.fillText('🧙', px * TILE + TILE / 2, py * TILE + TILE / 2);
+
+        if (game.selectedSkill) {
+            ctx.strokeStyle = '#ffd166';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(px * TILE + 2, py * TILE + 2, TILE - 4, TILE - 4);
         }
     }
 
-    // Controles do Teclado
-    window.addEventListener('keydown', (e) => {
-        if (player.hp <= 0) return; // Morto não anda
+    function updateUI() {
+        DOM.heroText.innerHTML = `Classe: ${player.className}<br>Nível ${player.level} • XP ${player.xp}/${player.xpNext}<br>Ataque ${player.atk} • Armadura ${player.armor}<br>Ouro ${player.gold} • Fama ${player.fame} • Karma ${player.karma}<br>Inventário: Poções ${player.inventory.potion}, Minério ${player.inventory.ore}, Relíquias ${player.inventory.relic}`;
 
-        switch(e.key) {
-            case 'ArrowUp': case 'w': movePlayer(0, -1); break;
-            case 'ArrowDown': case 's': movePlayer(0, 1); break;
-            case 'ArrowLeft': case 'a': movePlayer(-1, 0); break;
-            case 'ArrowRight': case 'd': movePlayer(1, 0); break;
-            case '1': 
-                skillActive = !skillActive; 
-                updateUI();
-                draw();
-                break;
+        DOM.hpText.textContent = `${player.hp}/${player.maxHp}`;
+        DOM.manaText.textContent = `${player.mana}/${player.maxMana}`;
+        DOM.staText.textContent = `${player.stamina}/${player.maxStamina}`;
+
+        DOM.hpFill.style.width = `${(player.hp / player.maxHp) * 100}%`;
+        DOM.manaFill.style.width = `${(player.mana / player.maxMana) * 100}%`;
+        DOM.staFill.style.width = `${(player.stamina / player.maxStamina) * 100}%`;
+
+        const tile = tileAt(player.x, player.y);
+        DOM.worldInfo.innerHTML = `Dia ${game.day}, ${String(game.hour).padStart(2, '0')}:00<br>Clima: ${game.weather}<br>Região: ${tile ? TERRAIN[tile.type].name : 'Desconhecida'} (${player.x},${player.y})<br>Inimigos vivos: ${enemies.length}`;
+
+        DOM.skillsList.innerHTML = [
+            `[1] Investida: avanço 2 tiles (CD ${player.cooldowns.dash})`,
+            `[2] Turbilhão: dano em área adjacente (CD ${player.cooldowns.whirlwind})`,
+            `[3] Bólido Ígneo: projétil mágico 3 tiles (CD ${player.cooldowns.firebolt})`,
+            `[4] Luz Vital: cura intensa (CD ${player.cooldowns.heal})`,
+            `[5] Passo Sombrio: teleporte tático (CD ${player.cooldowns.shadowstep})`
+        ].map(line => `<li>${line}</li>`).join('');
+
+        DOM.questList.innerHTML = game.quests.map(q => `<li>${q.done ? '✅' : '🧭'} ${q.text}</li>`).join('');
+        DOM.dialogue.textContent = game.dialogue;
+    }
+
+    window.addEventListener('keydown', e => {
+        const key = e.key.toLowerCase();
+        if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(key)) e.preventDefault();
+
+        if (key === 'arrowup' || key === 'w') move(0, -1);
+        if (key === 'arrowdown' || key === 's') move(0, 1);
+        if (key === 'arrowleft' || key === 'a') move(-1, 0);
+        if (key === 'arrowright' || key === 'd') move(1, 0);
+
+        if (key === '1') game.selectedSkill = 'dash';
+        if (key === '2') game.selectedSkill = 'whirlwind';
+        if (key === '3') game.selectedSkill = 'firebolt';
+        if (key === '4') {
+            game.selectedSkill = 'heal';
+            useSkill(0, 0);
+            spendTurn();
         }
+        if (key === '5') game.selectedSkill = 'shadowstep';
+        if (key === 'e') interact();
+
+        updateUI();
+        draw();
     });
 
-    // Inicialização
-    addLog("Bem-vindo ao mundo. Sobreviva.", "alert");
-    generateMap();
+    generateWorld();
+    world[player.y][player.x].visited = true;
+    addLog('Bem-vindo a Feito RPG: um mundo aberto de sobrevivência, caça, exploração e roleplay.', 'success');
+    addLog('Dica: selecione skills com 1-5 e mova para executar.', 'warn');
+    updateUI();
     draw();
-
+})();
 </script>
 </body>
 </html>
