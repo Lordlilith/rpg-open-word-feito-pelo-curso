@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Stoneshard Clóne - HTML RPG</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #eee;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            margin: 0;
+        }
+        #game-container {
+            display: flex;
+            gap: 20px;
+        }
+        canvas {
+            border: 2px solid #555;
+            background-color: #2a2a2a;
+            box-shadow: 0 0 10px rgba(0,0,0,0.8);
+        }
+        #ui-panel {
+            width: 300px;
+            background-color: #222;
+            padding: 15px;
+            border: 2px solid #555;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .status-box, .skills-box, .log-box {
+            background-color: #111;
+            padding: 10px;
+            border: 1px solid #444;
+        }
+        .log-box {
+            flex-grow: 1;
+            height: 250px;
+            overflow-y: auto;
+            font-size: 14px;
+        }
+        h3 { margin-top: 0; border-bottom: 1px solid #555; padding-bottom: 5px; }
+        .log-entry { margin: 5px 0; border-bottom: 1px solid #222; padding-bottom: 2px;}
+        .alert { color: #ffeb3b; }
+        .damage { color: #ff5252; }
+        .heal { color: #69f0ae; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="480" height="480"></canvas>
+    
+    <div id="ui-panel">
+        <div class="status-box">
+            <h3>Status 🧙‍♂️</h3>
+            <div id="stats">
+                Nível: 1 <br>
+                HP: 20 / 20 <br>
+                Ataque: 5 <br>
+                XP: 0 / 10
+            </div>
+        </div>
+        
+        <div class="skills-box">
+            <h3>Habilidades (Skills)</h3>
+            <p><strong>[ 1 ] Investida:</strong> Anda 2 tiles na direção escolhida. (Custo: 1 Turno)</p>
+            <div id="skill-status" style="color: gray;">Investida: Pronta</div>
+        </div>
+
+        <div class="log-box" id="combat-log">
+            <h3>Log do Mundo</h3>
+            </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const logBox = document.getElementById('combat-log');
+    
+    const TILE_SIZE = 32;
+    const COLS = 15;
+    const ROWS = 15;
+
+    // Estado do Jogo
+    let map = [];
+    let turnCount = 0;
+    let skillActive = false; // Flag para saber se a próxima ação usará a skill
+
+    // Entidade Jogador
+    let player = {
+        x: 1, y: 1,
+        hp: 20, maxHp: 20,
+        atk: 5, level: 1, xp: 0, xpNext: 10,
+        icon: '🧙‍♂️'
+    };
+
+    // Entidades Inimigas
+    let enemies = [];
+
+    // Função de Log
+    function addLog(msg, type = "") {
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${type}`;
+        entry.innerText = `[T${turnCount}] ${msg}`;
+        logBox.prepend(entry);
+    }
+
+    // Gerar Mapa Simples (0 = chão, 1 = parede)
+    function generateMap() {
+        for (let y = 0; y < ROWS; y++) {
+            map[y] = [];
+            for (let x = 0; x < COLS; x++) {
+                // Bordas são paredes, interior tem chance de ser parede
+                if (x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1) {
+                    map[y][x] = 1;
+                } else {
+                    map[y][x] = Math.random() < 0.15 ? 1 : 0;
+                }
+            }
+        }
+        map[player.y][player.x] = 0; // Garante que o jogador não nasça na parede
+        
+        // Adicionar inimigos
+        for(let i = 0; i < 4; i++) {
+            spawnEnemy();
+        }
+    }
+
+    function spawnEnemy() {
+        let ex, ey;
+        do {
+            ex = Math.floor(Math.random() * (COLS - 2)) + 1;
+            ey = Math.floor(Math.random() * (ROWS - 2)) + 1;
+        } while (map[ey][ex] === 1 || (ex === player.x && ey === player.y));
+        
+        enemies.push({ x: ex, y: ey, hp: 10, maxHp: 10, atk: 2, icon: '👹', name: 'Goblin' });
+    }
+
+    // Desenhar o Jogo
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Desenhar Mapa
+        for (let y = 0; y < ROWS; y++) {
+            for (let x = 0; x < COLS; x++) {
+                if (map[y][x] === 1) {
+                    ctx.fillStyle = '#444'; // Parede
+                    ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                } else {
+                    ctx.fillStyle = '#2a2a2a'; // Chão
+                    ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    ctx.strokeStyle = '#333';
+                    ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+        }
+
+        ctx.font = '24px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Desenhar Inimigos
+        enemies.forEach(e => {
+            ctx.fillText(e.icon, e.x * TILE_SIZE + TILE_SIZE/2, e.y * TILE_SIZE + TILE_SIZE/2);
+            // Barra de HP do inimigo
+            ctx.fillStyle = 'red';
+            ctx.fillRect(e.x * TILE_SIZE + 2, e.y * TILE_SIZE + 2, (TILE_SIZE-4) * (e.hp/e.maxHp), 4);
+        });
+
+        // Desenhar Jogador
+        ctx.fillText(player.icon, player.x * TILE_SIZE + TILE_SIZE/2, player.y * TILE_SIZE + TILE_SIZE/2);
+        
+        // Efeito visual se skill estiver ativada
+        if (skillActive) {
+            ctx.strokeStyle = 'yellow';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(player.x * TILE_SIZE, player.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+
+        updateUI();
+    }
+
+    function updateUI() {
+        document.getElementById('stats').innerHTML = `
+            Nível: ${player.level} <br>
+            HP: ${player.hp} / ${player.maxHp} <br>
+            Ataque: ${player.atk} <br>
+            XP: ${player.xp} / ${player.xpNext}
+        `;
+        document.getElementById('skill-status').innerText = skillActive ? "Investida: PRONTA PARA USO (Mova-se)" : "Investida: Ociosa (Pressione 1)";
+        document.getElementById('skill-status').style.color = skillActive ? "#ffeb3b" : "gray";
+    }
+
+    // Lógica de Turno e Movimento
+    function movePlayer(dx, dy) {
+        let distance = skillActive ? 2 : 1;
+        let targetX = player.x + (dx * distance);
+        let targetY = player.y + (dy * distance);
+        
+        skillActive = false; // Desativa a skill após o uso
+        turnCount++;
+
+        // Verifica limites do mapa
+        if (targetX < 0 || targetX >= COLS || targetY < 0 || targetY >= ROWS) {
+            addLog("Uma parede invisível bloqueia o caminho.", "alert");
+            return;
+        }
+
+        // Verifica colisão com parede
+        if (map[targetY][targetX] === 1) {
+            addLog("Você bateu de cara na parede.");
+            enemyTurn();
+            draw();
+            return;
+        }
+
+        // Verifica se tem inimigo no destino (Sistema de combate esbarrando)
+        let enemyIndex = enemies.findIndex(e => e.x === targetX && e.y === targetY);
+        if (enemyIndex !== -1) {
+            combat(enemies[enemyIndex], enemyIndex);
+        } else {
+            // Se o caminho estiver livre, move
+            player.x = targetX;
+            player.y = targetY;
+            if(distance === 2) addLog("Você usou INVESTIDA e avançou rapidamente!", "alert");
+        }
+
+        // Inimigos agem depois de você
+        enemyTurn();
+        draw();
+    }
+
+    function combat(enemy, index) {
+        // Jogador ataca inimigo
+        enemy.hp -= player.atk;
+        addLog(`Você causou ${player.atk} de dano no ${enemy.name}.`, "heal");
+
+        if (enemy.hp <= 0) {
+            addLog(`Você derrotou o ${enemy.name}! Ganhou 5 XP.`, "alert");
+            enemies.splice(index, 1);
+            gainXP(5);
+        }
+    }
+
+    function gainXP(amount) {
+        player.xp += amount;
+        if (player.xp >= player.xpNext) {
+            player.level++;
+            player.xp -= player.xpNext;
+            player.xpNext = Math.floor(player.xpNext * 1.5);
+            player.maxHp += 5;
+            player.hp = player.maxHp;
+            player.atk += 2;
+            addLog(`NÍVEL UPU! Você alcançou o Nível ${player.level}!`, "heal");
+        }
+    }
+
+    // IA Simples dos Inimigos
+    function enemyTurn() {
+        enemies.forEach(e => {
+            // Distância até o jogador
+            let dx = player.x - e.x;
+            let dy = player.y - e.y;
+            let dist = Math.abs(dx) + Math.abs(dy);
+
+            if (dist === 1) {
+                // Ataca o jogador se estiver adjacente
+                let dmg = e.atk;
+                player.hp -= dmg;
+                addLog(`O ${e.name} te atacou causando ${dmg} de dano!`, "damage");
+                
+                if (player.hp <= 0) {
+                    addLog("VOCÊ MORREU! Pressione F5 para reiniciar.", "damage");
+                    player.hp = 0;
+                }
+            } else if (dist < 6) {
+                // Persegue o jogador se estiver perto (Range de aggro)
+                let moveX = 0, moveY = 0;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    moveX = dx > 0 ? 1 : -1;
+                } else {
+                    moveY = dy > 0 ? 1 : -1;
+                }
+                
+                let nextX = e.x + moveX;
+                let nextY = e.y + moveY;
+
+                // Verifica se a célula está livre para andar
+                if (map[nextY][nextX] === 0 && !(nextX === player.x && nextY === player.y) && !enemies.some(other => other.x === nextX && other.y === nextY)) {
+                    e.x = nextX;
+                    e.y = nextY;
+                }
+            }
+        });
+
+        // Respawn de inimigos se o mapa ficar vazio
+        if(enemies.length === 0) {
+            addLog("Novos monstros apareceram nas sombras...", "alert");
+            for(let i=0; i<3; i++) spawnEnemy();
+        }
+    }
+
+    // Controles do Teclado
+    window.addEventListener('keydown', (e) => {
+        if (player.hp <= 0) return; // Morto não anda
+
+        switch(e.key) {
+            case 'ArrowUp': case 'w': movePlayer(0, -1); break;
+            case 'ArrowDown': case 's': movePlayer(0, 1); break;
+            case 'ArrowLeft': case 'a': movePlayer(-1, 0); break;
+            case 'ArrowRight': case 'd': movePlayer(1, 0); break;
+            case '1': 
+                skillActive = !skillActive; 
+                updateUI();
+                draw();
+                break;
+        }
+    });
+
+    // Inicialização
+    addLog("Bem-vindo ao mundo. Sobreviva.", "alert");
+    generateMap();
+    draw();
+
+</script>
+</body>
+</html>
